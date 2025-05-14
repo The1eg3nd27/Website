@@ -37,8 +37,3 @@ public class Role {
     }
 }
 
-enum ERole {
-    ROLE_USER,
-    ROLE_MODERATOR,
-    ROLE_ADMIN
-}

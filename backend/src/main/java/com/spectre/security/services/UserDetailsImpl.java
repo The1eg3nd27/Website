@@ -12,26 +12,26 @@ import org.springframework.security.core.userdetails.UserDetails;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.spectre.model.User;
 
+import jakarta.persistence.Column;
+
 public class UserDetailsImpl implements UserDetails {
   private static final long serialVersionUID = 1L;
 
   private Long id;
 
+public void setEmail(String email) {
+    this.email = email;
+}
+
   private String username;
-
-  private String email;
-
-  @JsonIgnore
-  private String password;
 
   private Collection<? extends GrantedAuthority> authorities;
 
-  public UserDetailsImpl(Long id, String username, String email, String password,
+  public UserDetailsImpl(Long id, String username,String email,
       Collection<? extends GrantedAuthority> authorities) {
     this.id = id;
     this.username = username;
     this.email = email;
-    this.password = password;
     this.authorities = authorities;
   }
 
@@ -39,13 +39,13 @@ public class UserDetailsImpl implements UserDetails {
     List<GrantedAuthority> authorities = user.getRoles().stream()
         .map(role -> new SimpleGrantedAuthority(role.getName().name()))
         .collect(Collectors.toList());
-
+  
     return new UserDetailsImpl(
-        user.getId(), 
-        user.getUsername(), 
-        user.getEmail(),
-        user.getPassword(), 
-        authorities);
+        user.getId(),
+        user.getUsername(),
+        user.getEmail(), // fix here
+        authorities
+    );
   }
 
   @Override
@@ -57,13 +57,15 @@ public class UserDetailsImpl implements UserDetails {
     return id;
   }
 
+  private String email;
+
   public String getEmail() {
-    return email;
+      return email;
   }
 
   @Override
   public String getPassword() {
-    return password;
+    return null; // or "" if you want to avoid nulls
   }
 
   @Override

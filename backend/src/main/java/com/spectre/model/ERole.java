@@ -1,5 +1,8 @@
 package com.spectre.model;
 
-public class ERole {
-    
+public enum ERole {
+    ROLE_USER,
+    ROLE_MODERATOR,
+    ROLE_ADMIN,
+    ROLE_GUEST
 }

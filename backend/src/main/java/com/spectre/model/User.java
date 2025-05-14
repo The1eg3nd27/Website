@@ -23,15 +23,6 @@ public class User {
     @Size(max = 20)
     private String username;
 
-    @NotBlank
-    @Size(max = 50)
-    @Email
-    private String email;
-
-    @NotBlank
-    @Size(max = 120)
-    private String password;
-
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles", 
                joinColumns = @JoinColumn(name = "user_id"),
@@ -44,25 +35,10 @@ public class User {
     public User(String username, String email, String password) {
         this.username = username;
         this.email = email;
-        this.password = password;
     }
 
-    // Getters and Setters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
+    @Column(nullable = true, unique = true)
+    private String email;
 
     public String getEmail() {
         return email;
@@ -72,6 +48,9 @@ public class User {
         this.email = email;
     }
 
+    @Column(nullable = true)
+    private String password;
+
     public String getPassword() {
         return password;
     }
@@ -80,6 +59,26 @@ public class User {
         this.password = password;
     }
 
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+
+
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+
     public Set<Role> getRoles() {
         return roles;
     }
@@ -87,4 +86,32 @@ public class User {
     public void setRoles(Set<Role> roles) {
         this.roles = roles;
     }
+    public String getFirstRoleName() {
+        return this.roles.stream()
+            .findFirst()
+            .map(r -> r.getName().name())
+            .orElse("ROLE_GUEST");
+    }
+    @Column(name = "discord_id", unique = true)
+    private String discordId;
+
+    @Column(name = "avatar")
+    private String avatar;
+
+    public String getDiscordId() {
+        return discordId;
+    }
+
+    public void setDiscordId(String discordId) {
+        this.discordId = discordId;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
+    }
+
 }
