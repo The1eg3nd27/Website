@@ -13,7 +13,7 @@ public class CommodityRequestDto {
     private String currentSystem;
     private String currentLocation;
     @JsonProperty("commodity")
-    @JsonAlias({"commodityName"})
+    @JsonAlias({"commodityName","name"})
     private String commodity;
     private int quantity;
     private boolean allowSystemChange;
