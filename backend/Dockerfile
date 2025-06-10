@@ -1,8 +1,19 @@
-FROM openjdk:17-jdk-slim
+FROM eclipse-temurin:21-jdk-alpine
 
 WORKDIR /app
-COPY target/backend-0.0.1-SNAPSHOT.jar app.jar
+
+COPY pom.xml ./
+COPY mvnw ./
+COPY .mvn .mvn
+
+RUN ./mvnw dependency:go-offline
+
+COPY src ./src
+
+RUN ./mvnw clean install -DskipTests
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+CMD ["./mvnw", "spring-boot:run"]
+
+

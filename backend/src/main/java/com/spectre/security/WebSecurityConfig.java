@@ -8,6 +8,7 @@ import com.spectre.security.services.UserDetailsServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -65,13 +66,17 @@ public class WebSecurityConfig {
             .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedHandler))
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**",
-                "/login/success",
-                "/discord/callback",
-                "/error", 
-                "/discord"
-                ).permitAll() 
-                .anyRequest().authenticated()
+                .requestMatchers("/api/posts").permitAll()            
+                .requestMatchers(HttpMethod.GET, "/api/posts").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/images").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/events").permitAll()
+                .requestMatchers("/discord", "/discord/callback").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/posts").permitAll()
+                .requestMatchers("/api/images").hasAnyRole("USER", "ADMIN")
+                .requestMatchers("/api/posts/**").hasAnyRole("USER", "ADMIN")
+                .requestMatchers("/api/tools/**").hasAnyRole("USER", "ADMIN")
+                
+            .anyRequest().authenticated()
             );
 
         http.authenticationProvider(authenticationProvider());

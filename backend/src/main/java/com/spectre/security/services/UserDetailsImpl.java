@@ -43,7 +43,7 @@ public void setEmail(String email) {
     return new UserDetailsImpl(
         user.getId(),
         user.getUsername(),
-        user.getEmail(), // fix here
+        user.getEmail(),
         authorities
     );
   }
@@ -65,7 +65,7 @@ public void setEmail(String email) {
 
   @Override
   public String getPassword() {
-    return null; // or "" if you want to avoid nulls
+    return null; 
   }
 
   @Override
