@@ -86,6 +86,14 @@ public class ToolsController {
     @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_ADMIN')")
     public ResponseEntity<CommodityResponseDto> getCommodityData(@RequestBody CommodityRequestDto request) {
         System.out.println("🔥 Controller called! Got request for: " + request.getCommodity());
+
+        if (request.getCommodity() == null || request.getCommodity().isBlank()) {
+            CommodityResponseDto error = CommodityResponseDto.builder()
+                .fallbackInfo("Commodity name is required.")
+                .build();
+            return ResponseEntity.badRequest().body(error);
+        }
+
         return ResponseEntity.ok(
             commodityService.getBestSellInfo(request.getCommodity(), request.getQuantity())
         );

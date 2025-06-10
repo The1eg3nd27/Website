@@ -37,9 +37,11 @@ public class CommodityCache {
     }
 
     public CommodityResponseDto getByName(String name) {
+        if (name == null) {
+            return null;
+        }
         Object result = commodities.get(name.toLowerCase());
         return (result instanceof CommodityResponseDto dto) ? dto : null;
     }
-    
     
 }
