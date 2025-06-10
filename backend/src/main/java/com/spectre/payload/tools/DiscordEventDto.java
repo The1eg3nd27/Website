@@ -1,14 +1,14 @@
 package com.spectre.payload.tools;
 
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 
-@Data
-@Builder 
+@Getter
+@Builder
 public class DiscordEventDto {
     private String name;
     private String description;
     private String startTime;
-    private String endTime;
-    private String location;
+    private String channel;
+    private String creator;
 }

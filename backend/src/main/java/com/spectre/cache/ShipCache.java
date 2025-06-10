@@ -1,20 +1,19 @@
 package com.spectre.cache;
 
+import com.spectre.model.Ship;
+import lombok.Getter;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Getter
 @Component
 public class ShipCache {
+    private final List<Ship> ships = new ArrayList<>();
 
-    private List<String> shipNames = new ArrayList<>();
-
-    public void updateNames(List<String> names) {
-        this.shipNames = names;
-    }
-
-    public List<String> getAllNames() {
-        return shipNames;
+    public void update(List<Ship> newShips) {
+        ships.clear();
+        ships.addAll(newShips);
     }
 }

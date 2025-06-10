@@ -1,12 +1,14 @@
 package com.spectre.model;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import lombok.Getter;
+import lombok.Setter;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.time.Instant;
 
 @Entity
+@Getter
+@Setter
 @Table(name = "posts")
 public class Post {
 
@@ -14,38 +16,29 @@ public class Post {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 150)
+    @Column(length = 150, nullable = false)
     private String title;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Lob
+    @Column(nullable = false)
     private String content;
 
-    @Column(nullable = false)
-    private LocalDateTime createdAt;
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt;
+
+    private Instant updatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
-    @JsonIgnore
-    private User author;
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    public Post() {}
-
-    public Post(String title, String content, User author) {
-        this.title = title;
-        this.content = content;
-        this.createdAt = LocalDateTime.now();
-        this.author = author;
+    @PrePersist
+    public void onCreate() {
+        createdAt = Instant.now();
     }
 
-    public Long getId() { return id; }
-    public String getTitle() { return title; }
-    public String getContent() { return content; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public User getAuthor() { return author; }
-
-    public void setId(Long id) { this.id = id; }
-    public void setTitle(String title) { this.title = title; }
-    public void setContent(String content) { this.content = content; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-    public void setAuthor(User author) { this.author = author; }
+    @PreUpdate
+    public void onUpdate() {
+        updatedAt = Instant.now();
+    }
 }

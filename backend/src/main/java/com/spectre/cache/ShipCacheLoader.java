@@ -1,38 +1,26 @@
 package com.spectre.cache;
 
-import com.spectre.model.Ship;
 import com.spectre.repository.ShipRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
 @Component
+@RequiredArgsConstructor
 public class ShipCacheLoader {
 
-    @Autowired
-    private ShipRepository shipRepository;
-
-    @Autowired
-    private ShipCache shipCache;
+    private final ShipRepository shipRepository;
+    private final ShipCache shipCache;
 
     @PostConstruct
-    @Scheduled(cron = "0 0 8 * * *") 
-    public void loadShipNames() {
-        System.out.println("ShipCacheLoader triggered (startup or scheduled)");
+    public void loadCacheOnStartup() {
+        refresh();
+    }
 
-        List<String> names = shipRepository.findAll().stream()
-                .map(Ship::getName)
-                .filter(Objects::nonNull)
-                .distinct()
-                .sorted()
-                .collect(Collectors.toList());
-
-        shipCache.updateNames(names);
-        System.out.println("Loaded " + names.size() + " ship names into cache.");
+    @Scheduled(cron = "0 0 3 * * *") 
+    public void refresh() {
+        shipCache.update(shipRepository.findAll());
+        System.out.println("🔁 ShipCache refreshed with " + shipCache.getShips().size() + " ships.");
     }
 }

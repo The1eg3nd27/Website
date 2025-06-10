@@ -1,9 +1,13 @@
 package com.spectre.security.jwt;
 
+import lombok.Getter;
+
+@Getter
 public class TokenRefreshException extends RuntimeException {
-    private static final long serialVersionUID = 1L;
+    private final String token;
 
     public TokenRefreshException(String token, String message) {
-        super(String.format("Failed for [%s]: %s", token, message));
+        super(message);
+        this.token = token;
     }
 }

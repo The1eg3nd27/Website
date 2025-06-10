@@ -1,21 +1,18 @@
 package com.spectre.payload.tools;
 
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 
-@Data
+@Getter
 @Builder
 public class TradeRouteResponseDto {
-
-    private String bestBuyLocation;
-    private double bestBuyPrice;
-
-    private String bestSellLocation;
+    private String fromLocation;
+    private String toLocation;
+    private String commodity;
+    private double buyPrice;
     private double sellPrice;
-
-    private String system;
-    private String riskLevel;
-
-    private double expectedProfit;
-    private String recommendation;
+    private int quantity;
+    private double totalProfit;
+    private boolean crossSystem;
+    private String message;
 }

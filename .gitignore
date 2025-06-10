@@ -1,2 +1,104 @@
-/backend/src/main/resources/application.properties
-/backend/src/main/resources/application.properties
+# ============================================================
+#  GENERAL PROJECT IGNORE RULES
+# ============================================================
+
+# Logs
+*.log
+
+# Build output
+target/
+build/
+out/
+
+# Compiled class files
+*.class
+
+# System files
+.DS_Store
+Thumbs.db
+
+# OS / IDE junk
+*.swp
+*.swo
+
+# ============================================================
+#  JAVA / SPRING BOOT / MAVEN
+# ============================================================
+
+# Maven wrapper
+.mvn/
+!/.mvn/wrapper/maven-wrapper.jar
+mvnw
+mvnw.cmd
+
+# IDE build folders
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Spring Boot config
+backend/src/main/resources/application.properties
+backend/src/main/resources/application-dev.properties
+backend/src/main/resources/application-prod.properties
+
+# Sensitive env files
+.env
+.env.*
+
+# Security
+*.pem
+*.key
+*.crt
+*.jks
+secrets.*
+
+# Local DB
+*.h2.db
+*.mv.db
+
+# ============================================================
+#  IDE CONFIG FILES
+# ============================================================
+
+# VSCode
+.vscode/
+
+# IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Eclipse / STS
+.classpath
+.project
+.settings/
+.apt_generated/
+.factorypath
+.springBeans
+.sts4-cache
+
+# NetBeans
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# ============================================================
+#  BACKUP & TEMP FILES
+# ============================================================
+
+*.bak
+*.tmp
+*~
+
+# ============================================================
+#  GIT BACKUP WARNINGS
+# ============================================================
+
+# Ignore personal credentials
+credentials.json
+tokens.json
+
+# Ignore backup
+website_backup.sql

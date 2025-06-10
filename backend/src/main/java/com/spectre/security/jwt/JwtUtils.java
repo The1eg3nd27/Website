@@ -1,75 +1,89 @@
 package com.spectre.security.jwt;
 
 import io.jsonwebtoken.*;
-import org.springframework.stereotype.Component;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Component;
+
+import com.spectre.model.User;
 import com.spectre.security.services.UserDetailsImpl;
-import java.util.stream.Collectors;
-import io.jsonwebtoken.*;
 
-
+import javax.crypto.SecretKey;
 import java.util.Date;
-
+import java.util.List;
 
 @Component
 public class JwtUtils {
 
-    private static final String jwtSecret = "SpectreSecretKeyForJWT12345678901234567890"; // should be 32+ chars
-    private static final long jwtExpirationMs = 86400000;
+    @Value("${spectre.app.jwtSecret}")
+    private String jwtSecret;
 
-    public String generateToken(String userId, String username, String role) {
-        return Jwts.builder()
-                .setSubject(userId)
-                .claim("username", username)
-                .claim("role", role)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
-                .signWith(SignatureAlgorithm.HS256, jwtSecret)
-                .compact();
+    @Value("${spectre.app.jwtExpirationMs}")
+    private int jwtExpirationMs;
+
+    @Value("${spectre.app.jwtRefreshExpirationMs}")
+    private int jwtRefreshExpirationMs;
+
+    private SecretKey getSigningKey() {
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
     }
 
     public String generateJwtToken(Authentication authentication) {
-    UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
-
-    return Jwts.builder()
-            .setSubject(userPrincipal.getUsername())
-            .claim("userId", userPrincipal.getId())
-            .claim("role", userPrincipal.getAuthorities().stream()
-                    .map(a -> a.getAuthority())
-                    .collect(Collectors.toList()))
-            .setIssuedAt(new Date())
-            .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
-            .signWith(SignatureAlgorithm.HS256, jwtSecret)
-            .compact();
+        UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
+        return Jwts.builder()
+                .setSubject(userPrincipal.getUsername())
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
     }
-
 
     public String getUserNameFromJwtToken(String token) {
-        return Jwts.parser()
-                .setSigningKey(jwtSecret)
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
                 .parseClaimsJws(token)
                 .getBody()
-                .get("username", String.class);
+                .getSubject();
     }
-
     public boolean validateJwtToken(String token) {
         try {
-            Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token);
+            Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token);
             return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            System.err.println("Invalid JWT: " + e.getMessage());
+        } catch (JwtException e) {
+            System.err.println("JWT validation failed: " + e.getMessage());
+            return false;
         }
-        return false;
     }
-    public String generateTokenFromDiscordData(String discordId, String username, String role) {
-      return Jwts.builder()
-              .setSubject(discordId)
-              .claim("username", username)
-              .claim("role", role)
-              .setIssuedAt(new Date())
-              .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
-              .signWith(SignatureAlgorithm.HS512, jwtSecret)
-              .compact();
-  }
-  
+    public String generateRefreshToken(User user) {
+        return Jwts.builder()
+            .setSubject(user.getUsername())
+            .setIssuedAt(new Date())
+            .setExpiration(new Date(System.currentTimeMillis() + jwtRefreshExpirationMs))
+            .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+            .compact();
+    }
+    
+    public String generateJwtToken(User user, List<String> discordRoles) {
+        return Jwts.builder()
+            .setSubject(user.getUsername())
+            .claim("id", user.getId())
+            .claim("username", user.getUsername())
+            .claim("avatar", user.getAvatar())
+            .claim("role", user.getRoles().iterator().next().getName().name()) // recommended fallback
+            .claim("discordRoles", discordRoles) // ✅ add this line
+            .setIssuedAt(new Date())
+            .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+            .signWith(SignatureAlgorithm.HS256, jwtSecret)
+            .compact();
+        }
+
+    
+
 }
+    

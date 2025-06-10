@@ -1,55 +1,45 @@
 package com.spectre.cache;
 
-import com.spectre.payload.tools.CommodityResponseDto;
+import lombok.Getter;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.util.*;
+import com.spectre.payload.tools.CommodityResponseDto;
 
+import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Getter
 @Component
 public class CommodityCache {
+    private final Map<String, Object> commodities = new ConcurrentHashMap<>();
 
-    private final Map<String, CommodityResponseDto> cache = new HashMap<>();
-    private Instant lastUpdated;
-
-    public void updateCache(Map<String, CommodityResponseDto> newData) {
-        cache.clear();
-        cache.putAll(newData);
-        lastUpdated = Instant.now();
+    public void update(String name, Object data) {
+        commodities.put(name.toLowerCase(), data);
     }
-    
+
+    public Object get(String name) {
+        return commodities.get(name.toLowerCase());
+    }
+
+    public boolean contains(String name) {
+        return commodities.containsKey(name.toLowerCase());
+    }
+    public void updateCache(Map<String, CommodityResponseDto> newCache) {
+        commodities.clear();
+        commodities.putAll(newCache);
+    }      
+    public Collection<CommodityResponseDto> getAll() {
+        return commodities.values().stream()
+                .filter(CommodityResponseDto.class::isInstance)
+                .map(CommodityResponseDto.class::cast)
+                .toList();
+    }
 
     public CommodityResponseDto getByName(String name) {
-        return cache.get(normalize(name));
+        Object result = commodities.get(name.toLowerCase());
+        return (result instanceof CommodityResponseDto dto) ? dto : null;
     }
-
-    public Integer getIdByName(String name) {
-        CommodityResponseDto dto = getByName(name);
-        if (dto == null || dto.getId() == null) return null;
-        try {
-            return Integer.parseInt(dto.getId());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    public Collection<CommodityResponseDto> getAll() {
-        return cache.values();
-    }
-
-    public boolean isEmpty() {
-        return cache.isEmpty();
-    }
-
-    public int size() {
-        return cache.size();
-    }
-
-    public Instant getLastUpdated() {
-        return lastUpdated;
-    }
-
-    private String normalize(String input) {
-        return input != null ? input.toLowerCase().trim() : "";
-    }
+    
+    
 }

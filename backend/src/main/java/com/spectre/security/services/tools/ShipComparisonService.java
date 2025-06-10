@@ -1,104 +1,120 @@
 package com.spectre.security.services.tools;
 
+import com.spectre.cache.ShipCache;
 import com.spectre.model.Ship;
+import com.spectre.payload.tools.ShipCompareRequestDto;
 import com.spectre.payload.tools.ShipComparisonResultDto;
+import com.spectre.payload.tools.ShipComparisonResultDto.ShipStats;
+import com.spectre.payload.tools.ShipDetailsDto;
 import com.spectre.repository.ShipRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.RequiredArgsConstructor;
-
-import org.springframework.http.HttpStatus;
+import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Optional;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
-@Service
 @RequiredArgsConstructor
+@Service
 public class ShipComparisonService {
 
-    private final ShipRepository shipRepository;
+    private final ShipCache shipCache;
 
-    public ShipComparisonResultDto compare(String name1, String name2) {
-        if (name1 == null || name2 == null || name1.trim().isEmpty() || name2.trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ship names must not be null or empty");
-        }
 
-        Ship ship1 = findClosestMatch(name1);
-        Ship ship2 = findClosestMatch(name2);
+    @Autowired
+    private ShipRepository shipRepository;
+
+
+    public ShipComparisonResultDto compare(ShipCompareRequestDto request) {
+        String shipAName = request.getShipA();
+        String shipBName = request.getShipB();
+
+        Ship ship1 = findClosestMatch(shipAName);
+        Ship ship2 = findClosestMatch(shipBName);
 
         return ShipComparisonResultDto.builder()
-                .ship1(buildDto(ship1))
-                .ship2(buildDto(ship2))
+                .shipA(toStats(ship1))
+                .shipB(toStats(ship2))
                 .build();
     }
 
-
-    private Ship findClosestMatch(String inputName) {
-        if (inputName == null || inputName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Ship name must not be null or empty");
-        }
-    
-        String searchName = inputName.toLowerCase();
-    
-        return shipRepository.findAll().stream()
-                .filter(ship -> ship.getName() != null) 
-                .min((s1, s2) -> Integer.compare(
-                        levenshteinDistance(s1.getName().toLowerCase(), searchName),
-                        levenshteinDistance(s2.getName().toLowerCase(), searchName)
-                ))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No ship match found for: " + inputName));
-    }
-    
-
-    private ShipComparisonResultDto.ShipStats buildDto(Ship ship) {
+    private ShipComparisonResultDto.ShipStats toStats(Ship ship) {
         return ShipComparisonResultDto.ShipStats.builder()
                 .name(ship.getName())
                 .manufacturer(ship.getManufacturer())
                 .type(ship.getType())
-                .focus(nullSafe(ship.getFocus()))
+                .focus(ship.getFocus())
+                .size(ship.getSize())
+                .crewMin(ship.getCrewMin())
                 .length(ship.getLength())
                 .beam(ship.getBeam())
                 .height(ship.getHeight())
-                .sizeClass(ship.getSizeClass())
-                .size(ship.getSize())
-                .crewMin(ship.getCrewMin())
                 .mass(ship.getMass())
-                .cargo(ship.getCargoCapacity())
-                .hp(ship.getHp())
+                .cargoCapacity(ship.getCargoCapacity())
+                .shieldHp(ship.getShieldHp())
                 .scmSpeed(ship.getScmSpeed())
-                .maxSpeed(ship.getNavMaxSpeed())
+                .navMaxSpeed(ship.getNavMaxSpeed())
                 .pitch(ship.getPitch())
                 .yaw(ship.getYaw())
                 .roll(ship.getRoll())
                 .insuranceClaimTime(ship.getInsuranceClaimTime())
-                .productionStatus(nullSafe(ship.getProductionStatus()))
-                .productionNote(nullSafe(ship.getProductionNote()))
-                .msrp(ship.getMsrp())
-                .pledgeUrl(nullSafe(ship.getPledgeUrl()))
-                .description(nullSafe(ship.getDescription()))
-                .image(ship.getShipImage())
+                .productionStatus(ship.getProductionStatus())
+                .productionNote(ship.getProductionNote())
+                .msrp((double) ship.getMsrp()) // ✅ cast float → double
+                .description(ship.getDescription())
+                .pledgeUrl(ship.getPledgeUrl())
+                .sizeClass(ship.getSizeClass())
                 .build();
-        }
-
-    private int levenshteinDistance(String a, String b) {
-        int[][] dp = new int[a.length() + 1][b.length() + 1];
-
-        for (int i = 0; i <= a.length(); i++) dp[i][0] = i;
-        for (int j = 0; j <= b.length(); j++) dp[0][j] = j;
-
-        for (int i = 1; i <= a.length(); i++) {
-            for (int j = 1; j <= b.length(); j++) {
-                int cost = a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1;
-                dp[i][j] = Math.min(
-                        Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1),
-                        dp[i - 1][j - 1] + cost
-                );
-            }
-        }
-
-        return dp[a.length()][b.length()];
     }
 
-    private String nullSafe(String value) {
-        return value != null ? value : "Unknown";
+
+    public ShipComparisonResultDto compareShips(String shipA, String shipB) {
+        Ship shipEntityA = findClosestMatch(shipA);
+        Ship shipEntityB = findClosestMatch(shipB);
+    
+        if (shipEntityA == null || shipEntityB == null) {
+            throw new RuntimeException("❌ One or both ships not found.");
+        }
+    
+        return new ShipComparisonResultDto(
+            toStats(shipEntityA),
+            toStats(shipEntityB)
+        );
     }
+
+    private Ship findClosestMatch(String query) {
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException("Ship query must not be null or blank");
+        }
+    
+        return shipCache.getShips().stream()
+                .filter(ship -> ship.getName() != null) 
+                .min(Comparator.comparingInt(ship ->
+                        LevenshteinDistance.getDefaultInstance().apply(
+                                query.toLowerCase(),
+                                ship.getName().toLowerCase()
+                        )
+                ))
+                .orElseThrow(() -> new RuntimeException("No matching ship found for: " + query));
+    }
+    
+    public List<String> getAllShipNames() {
+        return shipCache.getShips().stream()
+                .map(Ship::getName)
+                .filter(Objects::nonNull)
+                .sorted()
+                .collect(Collectors.toList());
+    }
+
+    public ShipDetailsDto getShipDetails(String name) {
+        Ship ship = shipRepository.findByNameIgnoreCase(name)
+            .orElseThrow(() -> new RuntimeException("Ship not found: " + name));
+        
+            return ShipDetailsDto.fromEntity(ship); 
+    }
+
+    
 }

@@ -1,5 +1,7 @@
 package com.spectre.payload.tools;
 
+import com.spectre.model.Ship;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -37,9 +39,49 @@ public class ShipDetailsDto {
     private String productionStatus;
     private String productionNote;
 
-    private Double msrp;
+    private Float msrp;
     private String pledgeUrl;
 
     private String description;
     private byte[] image;
+    private String uuid;
+    private Float cargoCapacity;
+    private Integer shieldHp;
+
+    public static ShipDetailsDto fromEntity(Ship ship) {
+    return ShipDetailsDto.builder()
+        .name(ship.getName())
+        .manufacturer(ship.getManufacturer())
+        .type(ship.getType())
+        .focus(ship.getFocus())
+        .length(ship.getLength())
+        .beam(ship.getBeam())
+        .height(ship.getHeight())
+        .sizeClass(ship.getSizeClass())
+        .size(ship.getSize())
+        .crewMin(ship.getCrewMin())
+        .crewMax(ship.getCrewMax())
+        .mass(ship.getMass())
+        .cargo(ship.getCargoCapacity())
+        .hp(ship.getHp())
+        .scmSpeed(ship.getScmSpeed())
+        .navMaxSpeed(ship.getNavMaxSpeed())
+        .pitch(ship.getPitch())
+        .yaw(ship.getYaw())
+        .roll(ship.getRoll())
+        .insuranceClaimTime(ship.getInsuranceClaimTime())
+        .productionStatus(ship.getProductionStatus())
+        .productionNote(ship.getProductionNote())
+        .msrp(ship.getMsrp())
+        .pledgeUrl(ship.getPledgeUrl())
+        .description(ship.getDescription())
+        .image(ship.getShipImage())
+        .uuid(ship.getUuid())
+        .cargoCapacity(ship.getCargoCapacity())
+        .shieldHp(ship.getShieldHp())
+        .build();
 }
+
+
+}
+

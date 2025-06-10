@@ -10,19 +10,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CommodityResponseDto {
-
     private String id;
     private String commodityName;
-
     private String bestBuyLocation;
     private double bestBuyPrice;
-
     private String bestSellLocation;
     private double bestSellPrice;
-
-    private double potentialProfit;
     private double profitPerUnit;
-
+    private double potentialProfit;
     private String recommendation;
     private String fallbackInfo;
 }
+

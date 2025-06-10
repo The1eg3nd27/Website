@@ -1,194 +1,68 @@
 package com.spectre.controller;
 
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
+import com.spectre.model.User;
+import com.spectre.payload.response.JwtResponse;
+import com.spectre.security.jwt.JwtUtils;
+import com.spectre.security.services.DiscordOAuthService;
+import com.spectre.security.services.UserService;
+import com.spectre.payload.tools.DiscordTokenResponse;
+import com.spectre.payload.tools.DiscordUserInfoResponse;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.validation.Valid;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import com.spectre.model.ERole;
-import com.spectre.model.RefreshToken;
-import com.spectre.model.Role;
-import com.spectre.model.User;
-import com.spectre.payload.request.LoginRequest;
-import com.spectre.payload.request.SignupRequest;
-import com.spectre.payload.request.TokenRefreshRequest;
-import com.spectre.payload.response.JwtResponse;
-import com.spectre.payload.response.MessageResponse;
-import com.spectre.payload.response.TokenRefreshResponse;
-import com.spectre.repository.RoleRepository;
-import com.spectre.repository.UserRepository;
-import com.spectre.security.jwt.JwtUtils;
-import com.spectre.security.jwt.TokenRefreshException;
-import com.spectre.security.services.AuthService;
-import com.spectre.security.services.RefreshTokenService;
-import com.spectre.security.services.UserDetailsImpl;
+import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
-//@RequestMapping("/api/auth")
+@RequestMapping("/discord")
+@RequiredArgsConstructor
 public class AuthController {
-  @Autowired
-  AuthenticationManager authenticationManager;
 
-  @Autowired
-  UserRepository userRepository;
+    private final DiscordOAuthService discordOAuthService;
+    private final JwtUtils jwtUtils;
+    private final UserService userService;
 
-  @Autowired
-  RoleRepository roleRepository;
+    @Value("${spectre.app.discord.redirectUri}")
+    private String redirectUri;
 
-  @Autowired
-  PasswordEncoder encoder;
+    @Value("${discord.client.id}")
+    private String clientId;
 
-  @Autowired
-  JwtUtils jwtUtils;
-  
-  @Autowired
-  private RefreshTokenService refreshTokenService;
+    @GetMapping
+    public void redirectToDiscord(HttpServletResponse response) throws IOException {
+        String discordAuthUrl = UriComponentsBuilder.fromHttpUrl("https://discord.com/oauth2/authorize")
+                .queryParam("client_id", clientId)
+                .queryParam("redirect_uri", redirectUri)
+                .queryParam("response_type", "code")
+                .queryParam("scope", "identify guilds")
+                .build()
+                .toString();
+        response.sendRedirect(discordAuthUrl);
+    }
 
-  @Value("${frontend.oauth2.redirect}")
-  private String frontendRedirectUrl;
-
-  @Autowired
-  private AuthService authService;
-
-  @GetMapping("/discord/callback")
-  public void handleDiscordCallback(@RequestParam String code, HttpServletResponse response) throws IOException {
-      String jwtToken = authService.handleDiscordOAuth2Login(code);
-      response.sendRedirect("http://localhost:3000/success?token=" + jwtToken);
-  }
+    @GetMapping("/callback")
+    public void handleCallback(@RequestParam("code") String code, HttpServletResponse response) throws IOException {
+        DiscordTokenResponse tokenResponse = discordOAuthService.exchangeCodeForToken(code);
+        String accessToken = tokenResponse.getAccessToken();
+        DiscordUserInfoResponse userInfo = discordOAuthService.getGuildMemberInfo(accessToken);
 
 
-  @GetMapping("/discord")
-  public void redirectToDiscord(HttpServletResponse response) throws IOException {
-    String discordAuthUrl = "https://discord.com/api/oauth2/authorize"
-        + "?client_id=1371876774803144774"
-        + "&redirect_uri=http://localhost:8081/discord/callback"
-        + "&response_type=code"
-        + "&scope=identify%20guilds%20guilds.members.read";
+        User user = userService.processDiscordLogin(userInfo);
+        String jwt = jwtUtils.generateJwtToken(user, userInfo.getRoles());
 
-    response.sendRedirect(discordAuthUrl);
-}
-    
 
-  @PostMapping("/signin")
-  public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-
-    Authentication authentication = authenticationManager.authenticate(
-        new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
-
-    SecurityContextHolder.getContext().setAuthentication(authentication);
-    String jwt = jwtUtils.generateJwtToken(authentication);
-    
-    UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();    
-    List<String> roles = userDetails.getAuthorities().stream()
-        .map(item -> item.getAuthority())
-        .collect(Collectors.toList());
-
-    return ResponseEntity.ok(new JwtResponse(jwt,
-                         userDetails.getId(), 
-                         userDetails.getUsername(), 
-                         null, 
-                         roles));
-  }
-
-  @PostMapping("/refreshtoken")
-    public ResponseEntity<?> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
-        String requestToken = request.getRefreshToken();
-
-        return refreshTokenService.findByToken(requestToken)
-                .map(refreshTokenService::verifyExpiration)
-                .map(RefreshToken::getUser)
-                .map(user -> {
-                    String role = user.getRoles().stream()
-                            .findFirst()
-                            .map(r -> r.getName().name())
-                            .orElse("ROLE_GUEST");
-
-                            String token = jwtUtils.generateToken(user.getId().toString(), user.getUsername(), role);
-                            return ResponseEntity.ok(new TokenRefreshResponse(token, requestToken));
-                })
-                .orElseThrow(() -> new TokenRefreshException(requestToken, "Refresh token is not in database!"));
+        String frontendRedirectUrl = "http://localhost:3000/login/success?token=" + jwt;
+        response.sendRedirect(frontendRedirectUrl);
     }
 
 
-
-  @PostMapping("/signup")
-  public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
-    if (userRepository.existsByUsername(signUpRequest.getUsername())) {
-      return ResponseEntity
-          .badRequest()
-          .body(new MessageResponse("Error: Username is already taken!"));
+    @GetMapping("/check")
+    public ResponseEntity<String> checkAuth() {
+        return ResponseEntity.ok("User is authenticated");
     }
-
-    if (userRepository.existsByEmail(signUpRequest.getEmail())) {
-      return ResponseEntity
-          .badRequest()
-          .body(new MessageResponse("Error: Email is already in use!"));
-    }
-
-    User user = new User(signUpRequest.getUsername(), 
-               signUpRequest.getEmail(),
-               encoder.encode(signUpRequest.getPassword()));
-
-    Set<String> strRoles = signUpRequest.getRole();
-    Set<Role> roles = new HashSet<>();
-
-    if (strRoles == null) {
-      Role userRole = roleRepository.findByName(ERole.ROLE_USER)
-          .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-      roles.add(userRole);
-    } else {
-      strRoles.forEach(role -> {
-        switch (role) {
-        case "admin":
-          Role adminRole = roleRepository.findByName(ERole.ROLE_ADMIN)
-              .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-          roles.add(adminRole);
-
-          break;
-        case "mod":
-          Role modRole = roleRepository.findByName(ERole.ROLE_MODERATOR)
-              .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-          roles.add(modRole);
-
-          break;
-        default:
-          Role userRole = roleRepository.findByName(ERole.ROLE_USER)
-              .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-          roles.add(userRole);
-        }
-      });
-    }
-
-    String role = user.getRoles().stream()
-      .findFirst()
-      .map(r -> r.getName().name())  
-      .orElse("ROLE_GUEST");
-
-    userRepository.save(user);
-
-    return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
-  }
-  
-
-
 }

@@ -1,138 +1,88 @@
 package com.spectre.security.services.tools;
 
-import com.spectre.cache.CommodityCache;
-import com.spectre.payload.tools.TradeRouteRequestDto;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.spectre.payload.tools.CommodityRequestDto;
 import com.spectre.payload.tools.TradeRouteResponseDto;
-import org.json.JSONArray;
-import org.json.JSONObject;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.Map;
-
 @Service
+@RequiredArgsConstructor
 public class TradeRouteService {
-    
-
-    private final CommodityCache commodityCache;
-    private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${uex.api.token}")
-    private String apiToken;
+    private String uexToken;
 
-    private static final String BASE_URL = "https://api.uexcorp.space/2.0";
+    private final RestTemplate restTemplate = new RestTemplate();
 
-    private static final Map<String, String> riskLevels = Map.of(
-            "Stanton", "Low",
-            "Pyro", "High"
-    );
-
-    public TradeRouteService(CommodityCache commodityCache) {
-        this.commodityCache = commodityCache;
-    }
-
-    public TradeRouteResponseDto calculateTradeRoute(TradeRouteRequestDto request) {
-        String commodityName = normalize(request.getCommodityName());
-        int quantity = Math.max(request.getQuantity(), 1);
-        String currentSystem = request.getCurrentSystem() != null ? request.getCurrentSystem().trim() : "Stanton";
-        boolean allowSystemChange = request.isCanTravelSystems();
-
-        Integer commodityId = commodityCache.getIdByName(commodityName);
-        if (commodityId == null) {
-            return createError("Commodity not found in cache.", currentSystem);
-        }
+    public TradeRouteResponseDto calculateTradeRoute(CommodityRequestDto request) {
+        String buyUrl = "https://uexcorp.space/api/commodities/" + request.getCommodity() + "/buy";
+        String sellUrl = "https://uexcorp.space/api/commodities/" + request.getCommodity() + "/sell";
 
         try {
-            String url = BASE_URL + "/commodities_prices?id_commodity=" + commodityId;
-            ResponseEntity<String> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.GET,
-                    new HttpEntity<>(createHeaders()),
-                    String.class
-            );
+            String buyRaw = restTemplate.getForObject(buyUrl + "?token=" + uexToken, String.class);
+            String sellRaw = restTemplate.getForObject(sellUrl + "?token=" + uexToken, String.class);
 
-            JSONObject body = new JSONObject(response.getBody());
-            JSONArray data = body.getJSONArray("data");
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode buyData = mapper.readTree(buyRaw);
+            JsonNode sellData = mapper.readTree(sellRaw);
 
-            double bestBuy = Double.MAX_VALUE;
-            String bestBuyLoc = null;
+            JsonNode bestBuy = findBestLocation(buyData, request.getCurrentSystem(), request.getCurrentLocation(), true);
+            JsonNode bestSell = findBestLocation(sellData, request.getCurrentSystem(), request.getCurrentLocation(), false);
 
-            double bestSell = -1;
-            String bestSellLoc = null;
-            String system = null;
-
-            for (int i = 0; i < data.length(); i++) {
-                JSONObject entry = data.getJSONObject(i);
-                double sellPrice = entry.optDouble("price_sell", 0);
-                double buyPrice = entry.optDouble("price_buy", 0);
-                String terminal = entry.optString("terminal_name", "Unknown");
-                String systemName = entry.optString("star_system_name", "Unknown");
-
-                boolean sameSystem = systemName.equalsIgnoreCase(currentSystem);
-                if (!allowSystemChange && !sameSystem) continue;
-
-                if (sellPrice > bestSell) {
-                    bestSell = sellPrice;
-                    bestSellLoc = terminal;
-                    system = systemName;
-                }
-
-                if (buyPrice > 0 && buyPrice < bestBuy) {
-                    bestBuy = buyPrice;
-                    bestBuyLoc = terminal;
-                }
+            if (bestBuy == null || bestSell == null) {
+                return TradeRouteResponseDto.builder()
+                        .commodity(request.getCommodity())
+                        .message("No viable trade route found.")
+                        .build();
             }
 
-            if (bestSellLoc == null || bestBuyLoc == null || bestBuy == Double.MAX_VALUE) {
-                return createError("No valid trade route found.", currentSystem);
-            }
-
-            double profit = (bestSell - bestBuy) * quantity;
-            String risk = riskLevels.getOrDefault(system, "Unknown");
+            double buyPrice = bestBuy.get("price").asDouble();
+            double sellPrice = bestSell.get("price").asDouble();
+            int quantity = request.getQuantity();
+            double totalProfit = (sellPrice - buyPrice) * quantity;
+            boolean crossSystem = !bestBuy.get("system").asText().equals(bestSell.get("system").asText());
 
             return TradeRouteResponseDto.builder()
-                    .bestBuyLocation(bestBuyLoc)
-                    .bestBuyPrice(bestBuy)
-                    .bestSellLocation(bestSellLoc)
-                    .sellPrice(bestSell)
-                    .system(system)
-                    .riskLevel(risk)
-                    .expectedProfit(profit)
-                    .recommendation(
-                            "🛒 Buy at " + bestBuyLoc + " for " + bestBuy + " aUEC\n" +
-                            "📦 Sell at " + bestSellLoc + " in " + system + " for " + bestSell + " aUEC\n" +
-                            "💰 Profit: " + profit + " aUEC"
-                    )
+                    .fromLocation(bestBuy.get("location").asText())
+                    .toLocation(bestSell.get("location").asText())
+                    .commodity(request.getCommodity())
+                    .buyPrice(buyPrice)
+                    .sellPrice(sellPrice)
+                    .quantity(quantity)
+                    .totalProfit(totalProfit)
+                    .crossSystem(crossSystem)
+                    .message("Best route found.")
                     .build();
 
         } catch (Exception e) {
-            return createError("Failed to retrieve trade route data.", currentSystem);
+            return TradeRouteResponseDto.builder()
+                    .commodity(request.getCommodity())
+                    .message("Error fetching trade data: " + e.getMessage())
+                    .build();
         }
     }
 
-    private HttpHeaders createHeaders() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(apiToken);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        return headers;
-    }
+    private JsonNode findBestLocation(JsonNode data, String system, String location, boolean isBuy) {
+        JsonNode best = null;
+        double bestPrice = isBuy ? Double.MAX_VALUE : Double.MIN_VALUE;
 
-    private String normalize(String input) {
-        return input != null ? input.toLowerCase().replaceAll("[^a-z0-9]", "") : "";
-    }
+        for (JsonNode entry : data) {
+            String entrySystem = entry.get("system").asText();
+            String entryLocation = entry.get("location").asText();
+            double price = entry.get("price").asDouble();
 
-    private TradeRouteResponseDto createError(String message, String system) {
-        return TradeRouteResponseDto.builder()
-                .bestBuyLocation("N/A")
-                .bestBuyPrice(0)
-                .bestSellLocation("N/A")
-                .sellPrice(0)
-                .system(system)
-                .riskLevel("Unknown")
-                .expectedProfit(0)
-                .recommendation(message)
-                .build();
+            boolean validLocation = entrySystem.equals(system) || entryLocation.equals(location);
+            if (validLocation && (
+                    (isBuy && price < bestPrice) ||
+                    (!isBuy && price > bestPrice))) {
+                best = entry;
+                bestPrice = price;
+            }
+        }
+        return best;
     }
 }

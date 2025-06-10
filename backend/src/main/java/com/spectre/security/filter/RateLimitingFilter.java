@@ -15,31 +15,30 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimitingFilter extends OncePerRequestFilter {
 
-    private static final int MAX_REQUESTS_PER_MINUTE = 100; //anpassen bei deployment
-    private static final long TIME_WINDOW_MILLIS = 60_000;
-
     private final Map<String, RequestCounter> requestCounts = new ConcurrentHashMap<>();
+    private static final long LIMIT_INTERVAL_MS = 10_000; // 10s
+    private static final int MAX_REQUESTS = 20;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
 
-        String clientIP = getClientIP(request);
-        long currentTime = Instant.now().toEpochMilli();
+        String ip = request.getRemoteAddr();
+        RequestCounter counter = requestCounts.computeIfAbsent(ip, k -> new RequestCounter());
 
-        RequestCounter counter = requestCounts.computeIfAbsent(clientIP, ip -> new RequestCounter());
         synchronized (counter) {
-            if (currentTime - counter.startTime > TIME_WINDOW_MILLIS) {
-                counter.count = 1;
-                counter.startTime = currentTime;
-            } else {
-                counter.count++;
+            long now = Instant.now().toEpochMilli();
+            if (now - counter.timestamp > LIMIT_INTERVAL_MS) {
+                counter.timestamp = now;
+                counter.count = 0;
             }
 
-            if (counter.count > MAX_REQUESTS_PER_MINUTE) {
-                response.setStatus(429); //zu viele anfragen
-                response.getWriter().write("Too many requests - please wait and try again.");
+            counter.count++;
+            if (counter.count > MAX_REQUESTS) {
+                response.setStatus(429);
+                response.getWriter().write("Too many requests");
                 return;
             }
         }
@@ -47,13 +46,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private String getClientIP(HttpServletRequest request) {
-        String xfHeader = request.getHeader("X-Forwarded-For");
-        return (xfHeader == null) ? request.getRemoteAddr() : xfHeader.split(",")[0];
-    }
-
-    private static class RequestCounter {
-        long startTime = Instant.now().toEpochMilli();
+    static class RequestCounter {
         int count = 0;
+        long timestamp = Instant.now().toEpochMilli();
     }
 }

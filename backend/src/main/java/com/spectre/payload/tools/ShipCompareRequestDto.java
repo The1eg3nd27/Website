@@ -1,9 +1,13 @@
 package com.spectre.payload.tools;
 
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 @Data
+@Getter
+@Setter
 public class ShipCompareRequestDto {
-    private String name1;
-    private String name2;
+    private String shipA;
+    private String shipB;
 }

@@ -1,96 +1,48 @@
 package com.spectre.security.services.tools;
 
-
 import com.spectre.payload.tools.PlayerInfoDTO;
+import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class PlayerTrackerService {
 
-    public PlayerInfoDTO fetchPlayerInfo(String handle) {
+    public PlayerInfoDTO getPlayerInfo(String handle) {
+        String url = "https://robertsspaceindustries.com/citizens/" + handle;
+
         try {
-            Document mainDoc = Jsoup.connect("https://robertsspaceindustries.com/citizens/" + handle)
-                    .userAgent("Mozilla/5.0")
-                    .timeout(10000)
-                    .get();
+            Document doc = Jsoup.connect(url).get();
 
-            Element root = mainDoc.selectFirst(".profile-content.overview-content.clearfix");
+            String name = doc.selectFirst("h2.profile-header-username").text();
+            String organization = doc.selectFirst(".profile-organization-name") != null
+                    ? doc.selectFirst(".profile-organization-name").text() : "None";
+            String rank = doc.selectFirst(".profile-organization-rank") != null
+                    ? doc.selectFirst(".profile-organization-rank").text() : "None";
+            String bio = doc.selectFirst(".profile-bio-content") != null
+                    ? doc.selectFirst(".profile-bio-content").text() : "No bio";
+            String image = doc.selectFirst(".profile-avatar img") != null
+                    ? doc.selectFirst(".profile-avatar img").attr("src") : "";
 
-            String sid = getTextByLabel(root, "Spectrum Identification (SID)");
-            String rank = getTextByLabel(root, "Organization rank");
-            String location = getTextByLabel(root, "Location");
-            String language = getTextByLabel(root, "Fluency");
-            String joinDate = getTextByLabel(root, "Enlisted");
-
-            Elements infoElements = mainDoc.select(".info");
-            String organization = getElementText(infoElements, 1, ".value");
-
-            String memberCount = getMemberCount(sid);
-
-            return new PlayerInfoDTO(
-                    handle.toUpperCase(),
-                    defaultIfBlank(sid, "Nicht verfügbar"),
-                    defaultIfBlank(organization, "Nicht verfügbar"),
-                    defaultIfBlank(rank, "Nicht verfügbar"),
-                    defaultIfBlank(location, "Nicht verfügbar"),
-                    defaultIfBlank(language, "Nicht verfügbar"),
-                    defaultIfBlank(joinDate, "Nicht verfügbar"),
-                    defaultIfBlank(memberCount, "Nicht verfügbar")
-            );
+            return PlayerInfoDTO.builder()
+                    .handle(name)
+                    .organization(organization)
+                    .rank(rank)
+                    .bio(bio)
+                    .image(image)
+                    .pageUrl(url)
+                    .build();
 
         } catch (Exception e) {
-            return new PlayerInfoDTO(
-                    handle.toUpperCase(),
-                    "Nicht verfügbar",
-                    "Nicht verfügbar",
-                    "Nicht verfügbar",
-                    "Nicht verfügbar",
-                    "Nicht verfügbar",
-                    "Nicht verfügbar",
-                    "Nicht verfügbar"
-            );
+            return PlayerInfoDTO.builder()
+                    .handle(handle)
+                    .bio("Profile not found or error occurred")
+                    .organization("Unknown")
+                    .rank("Unknown")
+                    .pageUrl(url)
+                    .build();
         }
-    }
-
-    private String getTextByLabel(Element root, String labelText) {
-        if (root == null) return null;
-        Elements labels = root.select(".label");
-        for (Element label : labels) {
-            if (label.text().trim().equalsIgnoreCase(labelText)) {
-                Element value = label.nextElementSibling();
-                return value != null ? value.text().trim() : null;
-            }
-        }
-        return null;
-    }
-
-    private String getElementText(Elements elements, int index, String selector) {
-        Element element = elements.size() > index ? elements.get(index).selectFirst(selector) : null;
-        return element != null ? element.text().trim() : null;
-    }
-
-    private String getMemberCount(String sid) {
-        try {
-            if (sid == null || sid.isBlank()) return null;
-
-            Document doc = Jsoup.connect("https://robertsspaceindustries.com/orgs/" + sid + "/members")
-                    .userAgent("Mozilla/5.0")
-                    .timeout(10000)
-                    .get();
-
-            Element countEl = doc.selectFirst(".logo .count");
-            return countEl != null ? countEl.text().trim() : null;
-
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private String defaultIfBlank(String input, String fallback) {
-        return (input == null || input.isBlank()) ? fallback : input;
     }
 }

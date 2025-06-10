@@ -1,29 +1,29 @@
 
 services:
+  mysql:
+    image: mysql:8
+    container_name: mysql-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpas
+      MYSQL_DATABASE: website
+      MYSQL_USER: "lori"
+      MYSQL_PASSWORD: "!Spectre187"
+    volumes:
+      - website_db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
   backend:
     build:
       context: ./backend
-    container_name: spectre-backend
+    container_name: spectre-api
+    depends_on:
+      - mysql
+    env_file:
+      - .env
     ports:
       - "8080:8080"
-    depends_on:
-      - db
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://spectre-db/spectre_db
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: secret
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-
-  db:
-    image: mysql:8
-    container_name: spectre-db
-    environment:
-      MYSQL_ROOT_PASSWORD: secret
-      MYSQL_DATABASE: spectre_db
-    ports:
-      - "3306:3306"
-    volumes:
-      - db_data:/var/lib/mysql
 
 volumes:
-  db_data:
+  website_db_data:

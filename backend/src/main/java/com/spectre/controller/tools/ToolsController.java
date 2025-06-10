@@ -1,116 +1,101 @@
 package com.spectre.controller.tools;
 
-
 import com.spectre.payload.tools.CommodityRequestDto;
 import com.spectre.payload.tools.CommodityResponseDto;
-import com.spectre.payload.tools.EarningsRequestDTO;
-import com.spectre.payload.tools.EarningsResponseDTO;
+import com.spectre.payload.tools.DiscordEventDto;
+import com.spectre.payload.tools.PlayerInfoDTO;
 import com.spectre.payload.tools.ShipCompareRequestDto;
 import com.spectre.payload.tools.ShipComparisonResultDto;
 import com.spectre.payload.tools.ShipDetailsDto;
-import com.spectre.payload.tools.TradeRouteRequestDto;
 import com.spectre.payload.tools.TradeRouteResponseDto;
-import com.spectre.security.services.ApiShipToShipSyncService;
 import com.spectre.security.services.tools.CommodityService;
-import com.spectre.security.services.tools.EarningsCalculatorService;
+import com.spectre.security.services.tools.DiscordEventService;
+import com.spectre.security.services.tools.PlayerTrackerService;
 import com.spectre.security.services.tools.ShipComparisonService;
 import com.spectre.security.services.tools.ShipInfoService;
 import com.spectre.security.services.tools.TradeRouteService;
-import com.spectre.cache.ShipCache;
+import lombok.RequiredArgsConstructor;
 
-import java.util.ArrayList;
 import java.util.List;
-
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/tools")
+@RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class ToolsController {
 
-    @Autowired
-    private EarningsCalculatorService earningsService;
+    private final TradeRouteService tradeRouteService;
 
-    @Autowired
-    private CommodityService commodityService;
+    private final ShipInfoService shipInfoService;
+    private final PlayerTrackerService playerTrackerService;
+    private final DiscordEventService discordEventService;
+    private final ShipComparisonService shipComparisonService;
+    private final CommodityService commodityService;
 
-    @Autowired
-    private TradeRouteService tradeRouteService;
-
-    @Autowired
-    private ShipComparisonService shipComparisonService;
-    
-    @Autowired
-    private ShipInfoService shipInfoService;
-
-    @Autowired
-    private ShipCache shipCache;
-
-    @Autowired
-    private ApiShipToShipSyncService apiShipToShipSyncService;
 
     
-    @PostMapping("/earnings")
-    public ResponseEntity<EarningsResponseDTO> calculateEarnings(@RequestBody EarningsRequestDTO request) {
-        EarningsResponseDTO result = earningsService.calculateEarnings(request);
-        return ResponseEntity.ok(result);
-    }
-    
-    @GetMapping("/commodities")
-    public ResponseEntity<CommodityResponseDto> getCommodity(@RequestParam String name,
-                                                             @RequestParam(defaultValue = "1") int quantity) {
-        CommodityRequestDto request = new CommodityRequestDto(name, quantity);
-        return ResponseEntity.ok(commodityService.getCommodityInfo(request));
+    @PostMapping("/tradeRoute")
+    public ResponseEntity<TradeRouteResponseDto> calculateRoute(@RequestBody CommodityRequestDto request) {
+        return ResponseEntity.ok(tradeRouteService.calculateTradeRoute(request));
     }
 
-    @PostMapping("/traderoute")
-    public ResponseEntity<TradeRouteResponseDto> getTradeRoute(@RequestBody TradeRouteRequestDto request) {
-        TradeRouteResponseDto result = tradeRouteService.calculateTradeRoute(request);
+    @PostMapping("/shipcompare")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    public ResponseEntity<ShipComparisonResultDto> compareShips(@RequestBody ShipCompareRequestDto request) {
+        if (request.getShipA() == null || request.getShipB() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        ShipComparisonResultDto result = shipComparisonService.compareShips(request.getShipA(), request.getShipB());
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/shipinfo")
     public ResponseEntity<ShipDetailsDto> getShipInfo(@RequestParam String name) {
-        ShipDetailsDto shipInfo = shipInfoService.getShipDetailsByName(name);
-        return ResponseEntity.ok(shipInfo);
+        return ResponseEntity.ok(shipInfoService.getDetailsByName(name));
+    }
+
+    @GetMapping("/playerinfo")
+    public ResponseEntity<PlayerInfoDTO> getPlayerInfo(@RequestParam String name) {
+        return ResponseEntity.ok(playerTrackerService.getPlayerInfo(name));
+    }
+
+    @GetMapping("/events")
+    public ResponseEntity<List<DiscordEventDto>> getEvents() {
+        return ResponseEntity.ok(discordEventService.fetchEvents());
     }
 
     @GetMapping("/shipnames")
     public ResponseEntity<List<String>> getAllShipNames() {
-        List<String> names = shipCache.getAllNames();
-        System.out.println("📦 Returning ship names: " + names.size()); // Log this!
-        return ResponseEntity.ok(names);
+        return ResponseEntity.ok(shipComparisonService.getAllShipNames());
+    }
+    @PostMapping("/shipinfo")
+    public ResponseEntity<ShipDetailsDto> getShipInfo(@RequestBody Map<String, String> body) {
+        String name = body.get("name");
+        ShipDetailsDto details = shipComparisonService.getShipDetails(name);
+        return ResponseEntity.ok(details);
     }
 
-
-    @GetMapping("/commodities/all")
-    public ResponseEntity<List<CommodityResponseDto>> getAllCommodities() {
-    List<CommodityResponseDto> all = new ArrayList<>(commodityService.getAllCommodities());
-    return ResponseEntity.ok(all);
-    }
-
-    @GetMapping("/commodities/names")
-    public ResponseEntity<List<String>> getAllCommodityNames() {
-    return ResponseEntity.ok(commodityService.getAllCommodityNames());
-    }
-
-    @PostMapping("/shipcompare")
-    public ResponseEntity<ShipComparisonResultDto> compareShips(
-            @RequestBody ShipCompareRequestDto request) {
-
-        ShipComparisonResultDto result = shipComparisonService.compare(
-                request.getName1(), request.getName2()
+    @PostMapping("/commodities")
+    @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_ADMIN')")
+    public ResponseEntity<CommodityResponseDto> getCommodityData(@RequestBody CommodityRequestDto request) {
+        System.out.println("🔥 Controller called! Got request for: " + request.getCommodity());
+        return ResponseEntity.ok(
+            commodityService.getBestSellInfo(request.getCommodity(), request.getQuantity())
         );
-        return ResponseEntity.ok(result);
     }
-
-    @PostMapping("/syncApiShips")
-    public ResponseEntity<String> syncShips() {
-        apiShipToShipSyncService.syncApiShipsToMainShips(); 
-        return ResponseEntity.ok("✅ Ship sync complete.");
+    
+    @GetMapping("/commodities/names")
+    @PreAuthorize("hasAnyRole('ROLE_USER', 'ROLE_ADMIN')")
+    public ResponseEntity<List<String>> getCommodityNames() {
+        return ResponseEntity.ok(commodityService.getAllCommodityNames());
     }
 
 }
+
