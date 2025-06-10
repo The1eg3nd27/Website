@@ -1,0 +1,46 @@
+@import './variables';
+
+body {
+  font-family: $font-main;
+  background: #c6c6c6;
+  color: white;
+  margin: 0;
+  padding: 0;
+}
+
+.home-page {
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    font-size: 1.1rem;
+    color: #ccc;
+  }
+}
+
+.page {
+  h1 {
+    font-size: 1.8rem;
+    margin-bottom: 0.4rem;
+  }
+
+  p {
+    font-size: 1rem;
+    color: #aaa;
+  }
+}
+.ship-info-page {
+  input {
+    border: 1px solid #333;
+    border-radius: 6px;
+  }
+
+  button {
+    padding: 0.4rem 1rem;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+  }
+}
