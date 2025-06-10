@@ -75,8 +75,8 @@ public class JwtUtils {
             .claim("id", user.getId())
             .claim("username", user.getUsername())
             .claim("avatar", user.getAvatar())
-            .claim("role", user.getRoles().iterator().next().getName().name()) // recommended fallback
-            .claim("discordRoles", discordRoles) // ✅ add this line
+            .claim("role", user.getRoles().iterator().next().getName().name()) 
+            .claim("discordRoles", discordRoles)
             .setIssuedAt(new Date())
             .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
             .signWith(SignatureAlgorithm.HS256, jwtSecret)
