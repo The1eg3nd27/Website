@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-
+import org.apache.commons.text.similarity.LevenshteinDistance;
 @Service
 @RequiredArgsConstructor
 public class TradeRouteService {
@@ -44,7 +44,10 @@ public class TradeRouteService {
             double sellPrice = bestSell.get("price").asDouble();
             int quantity = request.getQuantity();
             double totalProfit = (sellPrice - buyPrice) * quantity;
-            boolean crossSystem = !bestBuy.get("system").asText().equals(bestSell.get("system").asText());
+            boolean crossSystem = false;
+            if (bestBuy.hasNonNull("system") && bestSell.hasNonNull("system")) {
+                crossSystem = !bestBuy.get("system").asText().equalsIgnoreCase(bestSell.get("system").asText());
+            }
 
             return TradeRouteResponseDto.builder()
                     .fromLocation(bestBuy.get("location").asText())
@@ -69,16 +72,28 @@ public class TradeRouteService {
     private JsonNode findBestLocation(JsonNode data, String system, String location, boolean isBuy) {
         JsonNode best = null;
         double bestPrice = isBuy ? Double.MAX_VALUE : Double.MIN_VALUE;
+        LevenshteinDistance distance = LevenshteinDistance.getDefaultInstance();
 
         for (JsonNode entry : data) {
-            String entrySystem = entry.get("system").asText();
-            String entryLocation = entry.get("location").asText();
-            double price = entry.get("price").asDouble();
+            JsonNode systemNode = entry.get("system");
+            JsonNode locationNode = entry.get("location");
+            JsonNode priceNode = entry.get("price");
 
-            boolean validLocation = entrySystem.equals(system) || entryLocation.equals(location);
-            if (validLocation && (
-                    (isBuy && price < bestPrice) ||
-                    (!isBuy && price > bestPrice))) {
+            if (systemNode == null || locationNode == null || priceNode == null) {
+                continue;
+            }
+
+            String entrySystem = systemNode.asText("");
+            String entryLocation = locationNode.asText("");
+            double price = priceNode.asDouble();
+
+            boolean systemMatch = system != null && !system.isBlank() &&
+                    distance.apply(entrySystem.toLowerCase(), system.toLowerCase()) <= 2;
+            boolean locationMatch = location != null && !location.isBlank() &&
+                    distance.apply(entryLocation.toLowerCase(), location.toLowerCase()) <= 2;
+
+            boolean validLocation = systemMatch || locationMatch;
+            if (validLocation && ((isBuy && price < bestPrice) || (!isBuy && price > bestPrice))) {
                 best = entry;
                 bestPrice = price;
             }
